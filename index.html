@@ -815,7 +815,7 @@
 
 <script>
 // ══ DATA ══
-const FACILITIES = [
+let FACILITIES = [
   {
     id:1, type:'hospital', name:'AIIMS New Delhi', address:'Sri Aurobindo Marg, Ansari Nagar, New Delhi',
     lat:28.5672, lng:77.2100, specialty:['Emergency','Cardiology','Neurology','Oncology','Paediatrics'],
@@ -854,7 +854,7 @@ const FACILITIES = [
   {
     id:6, type:'clinic', name:'Max Smart Super Speciality — Saket', address:'Press Enclave Marg, Saket',
     lat:28.5245, lng:77.2132, specialty:['Cardiology','Neurology','Orthopaedics','Oncology'],
-    waitTime:25, rating:4.7, beds:nil, open:true, phone:'+91-11-26515050',
+    waitTime:25, rating:4.7, beds:null, open:true, phone:'+91-11-26515050',
     distance:null, routeTime:null,
     desc:'Super-speciality hospital delivering advanced cardiac, neuro and onco care.'
   },
@@ -944,6 +944,64 @@ const FACILITIES = [
   }
 ];
 
+function resolveApiBaseUrl() {
+  const qpBase = new URLSearchParams(window.location.search).get('apiBase');
+  if (qpBase) {
+    return qpBase.replace(/\/$/, '');
+  }
+
+  const { protocol, hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:3000';
+  }
+
+  return `${protocol}//${hostname.replace('-8080.', '-3000.')}`;
+}
+
+function mapApiFacility(item) {
+  const lat = Number.parseFloat(item.latitude);
+  const lng = Number.parseFloat(item.longitude);
+  const rating = Number.parseFloat(item.rating);
+  const beds = item.beds == null ? null : Number(item.beds);
+  const deterministicWait = 5 + (Number(item.id) % 55);
+
+  return {
+    id: item.id,
+    type: item.type,
+    name: item.name,
+    address: item.address,
+    lat: Number.isFinite(lat) ? lat : 28.5700,
+    lng: Number.isFinite(lng) ? lng : 77.2100,
+    specialty: Array.isArray(item.specialties) && item.specialties.length ? item.specialties : ['General'],
+    waitTime: deterministicWait,
+    rating: Number.isFinite(rating) ? rating : 4.0,
+    beds,
+    open: Boolean(item.is_open),
+    phone: item.phone || 'N/A',
+    distance: null,
+    routeTime: null,
+    desc: item.description || 'Healthcare facility',
+  };
+}
+
+async function loadFacilitiesFromApi() {
+  const apiBase = resolveApiBaseUrl();
+  const response = await fetch(`${apiBase}/api/v1/facilities`, {
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Facilities API failed: ${response.status}`);
+  }
+
+  const payload = await response.json();
+  if (!Array.isArray(payload)) {
+    throw new Error('Facilities API response is not an array');
+  }
+
+  FACILITIES = payload.map(mapApiFacility);
+}
+
 // ══ STATE ══
 let map, userMarker, userLatLng = null;
 let routeLayer = null;
@@ -1023,9 +1081,13 @@ function buildPopupHTML(f) {
 
 // ══ MOBILE UNIT ANIMATION ══
 let mobileOffsets = {};
-FACILITIES.filter(f=>f.type==='mobile').forEach(f=>{
-  mobileOffsets[f.id] = {dx:0,dy:0,dxDir:Math.random()>0.5?1:-1,dyDir:Math.random()>0.5?1:-1};
-});
+
+function rebuildMobileOffsets() {
+  mobileOffsets = {};
+  FACILITIES.filter(f=>f.type==='mobile').forEach(f=>{
+    mobileOffsets[f.id] = {dx:0,dy:0,dxDir:Math.random()>0.5?1:-1,dyDir:Math.random()>0.5?1:-1};
+  });
+}
 
 function animateMobileUnits() {
   setInterval(()=>{
@@ -1132,6 +1194,7 @@ function renderFacilityList() {
   document.getElementById('stat-facilities').textContent = list.length;
   const mobileCount = list.filter(f=>f.type==='mobile').length;
   document.getElementById('stat-mobile').textContent = mobileCount;
+  document.getElementById('mobile-count').textContent = mobileCount + ' Units Active';
 
   if(!list.length) {
     el.innerHTML = `<div class="empty-state"><div class="big-icon">🔍</div><div>No facilities match current filters.</div></div>`;
@@ -1322,7 +1385,14 @@ document.getElementById('search-input').addEventListener('input', e=>{
 });
 
 // ══ INIT ══
-window.addEventListener('DOMContentLoaded', ()=>{
+window.addEventListener('DOMContentLoaded', async ()=>{
+  try {
+    await loadFacilitiesFromApi();
+  } catch (error) {
+    console.error('Using fallback data. API fetch failed:', error);
+  }
+
+  rebuildMobileOffsets();
   initMap();
   renderFacilityList();
   // Auto-locate after small delay
