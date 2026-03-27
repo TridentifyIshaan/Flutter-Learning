@@ -17,7 +17,24 @@ const app = express();
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: config.corsOrigin }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow requests with no Origin header (curl, server-to-server, mobile apps).
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (config.isCorsOriginAllowed(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, false);
+    },
+  })
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(requestLogger);

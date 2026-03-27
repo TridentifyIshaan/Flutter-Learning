@@ -1,5 +1,53 @@
 require('dotenv').config();
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function createOriginPattern(origin) {
+  if (!origin.includes('*')) {
+    return null;
+  }
+
+  const pattern = '^' + origin.split('*').map(escapeRegex).join('.*') + '$';
+  return new RegExp(pattern);
+}
+
+const defaultCorsOrigins = [
+  'http://localhost:3000',
+  'http://localhost:8080',
+  'http://localhost:8081',
+];
+
+const devForwardedCorsOrigins = [
+  'https://*.app.github.dev',
+  'https://*.github.dev',
+];
+
+const configuredCorsOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOrigins = Array.from(
+  new Set([
+    ...defaultCorsOrigins,
+    ...(process.env.NODE_ENV === 'production' ? [] : devForwardedCorsOrigins),
+    ...configuredCorsOrigins,
+  ])
+);
+
+const corsOriginPatterns = corsOrigins
+  .map((origin) => createOriginPattern(origin))
+  .filter(Boolean);
+
+function isCorsOriginAllowed(origin) {
+  return (
+    corsOrigins.includes(origin) ||
+    corsOriginPatterns.some((pattern) => pattern.test(origin))
+  );
+}
+
 module.exports = {
   nodeEnv: process.env.NODE_ENV || 'development',
   
@@ -46,5 +94,6 @@ module.exports = {
   logLevel: process.env.LOG_LEVEL || 'info',
   
   // CORS
-  corsOrigin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(','),
+  corsOrigin: corsOrigins,
+  isCorsOriginAllowed,
 };

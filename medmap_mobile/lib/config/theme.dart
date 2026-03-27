@@ -11,13 +11,11 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
       ),
-      backgroundColor: const Color(0xFF080C10),
-      primaryColor: const Color(0xFF00D4AA),
-      colorScheme: const ColorScheme.dark(
+      primaryColor: const Color(0xFF00D4AA), colorScheme: const ColorScheme.dark(
         primary: Color(0xFF00D4AA),
         secondary: Color(0xFFF5A623),
         error: Color(0xFFFF4D6A),
-      ),
+      ).copyWith(background: const Color(0xFF080C10)),
     );
   }
 }
