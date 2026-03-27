@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: medmap-postgres
+    environment:
+      POSTGRES_DB: medmap_db
+      POSTGRES_USER: medmap_user
+      POSTGRES_PASSWORD: medmap_secure_password_123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medmap_user -d medmap_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: medmap-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medmap-backend
+    environment:
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: medmap_db
+      DB_USER: medmap_user
+      DB_PASSWORD: medmap_secure_password_123
+      REST_PORT: 3000
+      WS_PORT: 3002
+      JWT_SECRET: dev_secret_key_change_in_production
+      ORS_API_KEY: ${ORS_API_KEY}
+      IPFS_PROJECT_ID: ${IPFS_PROJECT_ID}
+      IPFS_PROJECT_SECRET: ${IPFS_PROJECT_SECRET}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: medmap-network

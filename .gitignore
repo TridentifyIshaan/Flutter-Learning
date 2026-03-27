@@ -1,0 +1,34 @@
+*.o
+*.a
+*.lib
+*.dll
+*.exe
+*.so
+*.dylib
+*.deb
+*.dex
+*.jar
+
+# Miscellaneous
+*.class
+*.lock
+*.log
+*.swp
+*.swo
+*~
+.DS_Store
+.AppleDouble
+.LSOverride
+*.iml
+*.iws
+*.ipr
+*.sublime-workspace
+
+# Misc
+.env
+.env.local
+.env*.local
+.vscode/
+.idea/
+*.swp
+*.swo

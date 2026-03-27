@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MedMap — Clinical Routing Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root {
+      --bg-void:    #080c10;
+      --bg-deep:    #0c1118;
+      --bg-panel:   #111820;
+      --bg-card:    #161e28;
+      --bg-hover:   #1c2736;
+      --border:     #1e2d3d;
+      --border-hi:  #2a3f56;
+      --teal:       #00d4aa;
+      --teal-dim:   #00a882;
+      --teal-glow:  rgba(0,212,170,0.15);
+      --amber:      #f5a623;
+      --amber-dim:  rgba(245,166,35,0.15);
+      --red:        #ff4d6a;
+      --red-dim:    rgba(255,77,106,0.12);
+      --blue:       #4d9fff;
+      --blue-dim:   rgba(77,159,255,0.12);
+      --purple:     #a78bfa;
+      --text-bright:#e8f0f7;
+      --text-main:  #8fa3b8;
+      --text-muted: #445566;
+      --text-faint: #2a3a4a;
+      --font-head:  'Syne', sans-serif;
+      --font-body:  'DM Sans', sans-serif;
+      --font-mono:  'DM Mono', monospace;
+      --radius-sm:  6px;
+      --radius:     10px;
+      --radius-lg:  16px;
+      --shadow:     0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-void);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── TOPBAR ── */
+    #topbar {
+      height: 58px;
+      background: var(--bg-deep);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      gap: 16px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-head);
+      font-weight: 800;
+      font-size: 17px;
+      color: var(--text-bright);
+      letter-spacing: -0.3px;
+      white-space: nowrap;
+    }
+    .logo-icon {
+      width: 30px;
+      height: 30px;
+      background: linear-gradient(135deg, var(--teal), #007a63);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .logo span { color: var(--teal); }
+    .topbar-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+
+    #search-bar {
+      flex: 1;
+      max-width: 360px;
+      position: relative;
+    }
+    #search-bar input {
+      width: 100%;
+      height: 34px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-bright);
+      font-family: var(--font-body);
+      font-size: 13px;
+      padding: 0 12px 0 34px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    #search-bar input::placeholder { color: var(--text-muted); }
+    #search-bar input:focus { border-color: var(--border-hi); }
+    #search-bar .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-main);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 10px;
+    }
+    .pulse-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      animation: pulse-anim 2s ease-in-out infinite;
+    }
+    .pulse-dot.green { background: var(--teal); box-shadow: 0 0 6px var(--teal); }
+    .pulse-dot.amber { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+    @keyframes pulse-anim {
+      0%,100% { opacity:1; transform:scale(1); }
+      50% { opacity:.5; transform:scale(0.8); }
+    }
+
+    .btn-locate {
+      height: 34px;
+      padding: 0 14px;
+      background: var(--teal-glow);
+      border: 1px solid var(--teal-dim);
+      border-radius: var(--radius-sm);
+      color: var(--teal);
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .2s;
+    }
+    .btn-locate:hover {
+      background: rgba(0,212,170,0.25);
+      box-shadow: 0 0 12px var(--teal-glow);
+    }
+
+    /* ── MAIN LAYOUT ── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── LEFT SIDEBAR ── */
+    #sidebar {
+      width: 300px;
+      min-width: 300px;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-section {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    /* Filters */
+    .filter-group { display: flex; flex-direction: column; gap: 8px; }
+
+    .filter-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      color: var(--text-main);
+    }
+    .filter-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+    .toggle {
+      width: 32px; height: 18px;
+      background: var(--bg-void);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+      flex-shrink: 0;
+    }
+    .toggle.on { background: var(--teal-glow); border-color: var(--teal); }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 12px; height: 12px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      top: 2px; left: 2px;
+      transition: left .2s, background .2s;
+    }
+    .toggle.on::after { left: 16px; background: var(--teal); }
+
+    .tag-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Specialty chips */
+    .chip-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .chip:hover { border-color: var(--border-hi); color: var(--text-bright); }
+    .chip.active { background: var(--teal-glow); border-color: var(--teal); color: var(--teal); }
+
+    /* Sort bar */
+    .sort-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sort-btn {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .sort-btn.active {
+      background: var(--bg-hover);
+      border-color: var(--border-hi);
+      color: var(--text-bright);
+    }
+    .sort-label { font-size: 11px; font-family: var(--font-mono); color: var(--text-faint); margin-right: 4px; }
+    .result-count {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Facility list */
+    #facility-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    #facility-list::-webkit-scrollbar { width: 4px; }
+    #facility-list::-webkit-scrollbar-track { background: transparent; }
+    #facility-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .facility-card {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all .15s;
+      position: relative;
+    }
+    .facility-card:hover { background: var(--bg-hover); }
+    .facility-card.active {
+      background: var(--bg-hover);
+      border-left-color: var(--teal);
+    }
+    .fc-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .fc-name {
+      font-family: var(--font-head);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-bright);
+      line-height: 1.3;
+    }
+    .fc-type-badge {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      padding: 2px 7px;
+      border-radius: 10px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .badge-hospital { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,77,106,0.3); }
+    .badge-clinic   { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(77,159,255,0.3); }
+    .badge-mobile   { background: var(--teal-glow); color: var(--teal); border: 1px solid rgba(0,212,170,0.3); }
+    .badge-pharma   { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,166,35,0.3); }
+
+    .fc-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .fc-meta-item { display: flex; align-items: center; gap: 4px; font-size: 11px; font-family: var(--font-mono); }
+    .fc-dist { color: var(--teal); }
+    .fc-wait { }
+    .wait-low    { color: #4ade80; }
+    .wait-medium { color: var(--amber); }
+    .wait-high   { color: var(--red); }
+    .fc-rating { color: var(--amber); }
+    .fc-open { color: #4ade80; font-size: 10px; }
+    .fc-closed { color: var(--red); font-size: 10px; }
+
+    /* ── MAP CONTAINER ── */
+    #map-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    #map { width: 100%; height: 100%; }
+
+    /* Map overlay controls */
+    .map-controls {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .map-ctrl-btn {
+      width: 36px; height: 36px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: all .15s;
+      box-shadow: var(--shadow);
+    }
+    .map-ctrl-btn:hover { background: var(--bg-hover); color: var(--text-bright); border-color: var(--border-hi); }
+
+    .map-layer-toggle {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 1000;
+      display: flex;
+      gap: 6px;
+    }
+    .layer-btn {
+      height: 30px;
+      padding: 0 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 5px;
+      transition: all .15s;
+      box-shadow: var(--shadow);
+    }
+    .layer-btn.on { background: var(--teal-glow); border-color: var(--teal); color: var(--teal); }
+    .layer-btn:hover { border-color: var(--border-hi); }
+
+    /* Stats bar at bottom of map */
+    .map-stats {
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      z-index: 1000;
+      display: flex;
+      gap: 8px;
+    }
+    .stat-chip {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-main);
+      display: flex; align-items: center; gap: 6px;
+      box-shadow: var(--shadow);
+    }
+    .stat-chip .val {
+      font-size: 15px;
+      font-weight: 500;
+      font-family: var(--font-head);
+      color: var(--text-bright);
+    }
+
+    /* ── DETAIL PANEL ── */
+    #detail-panel {
+      width: 320px;
+      min-width: 320px;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: translateX(100%);
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+    }
+    #detail-panel.open { transform: translateX(0); }
+
+    .dp-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .dp-close {
+      margin-left: auto;
+      width: 26px; height: 26px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .dp-icon {
+      width: 42px; height: 42px;
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .dp-icon.hospital { background: var(--red-dim); }
+    .dp-icon.clinic   { background: var(--blue-dim); }
+    .dp-icon.mobile   { background: var(--teal-glow); }
+    .dp-icon.pharma   { background: var(--amber-dim); }
+
+    .dp-title {
+      font-family: var(--font-head);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-bright);
+      line-height: 1.3;
+    }
+    .dp-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .dp-body { flex: 1; overflow-y: auto; padding: 0; }
+    .dp-body::-webkit-scrollbar { width: 4px; }
+    .dp-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .dp-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .dp-section-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .info-cell {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+    }
+    .info-cell-label { font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); margin-bottom: 4px; }
+    .info-cell-val { font-size: 14px; font-family: var(--font-head); font-weight: 600; color: var(--text-bright); }
+    .info-cell-val.teal { color: var(--teal); }
+    .info-cell-val.amber { color: var(--amber); }
+    .info-cell-val.red { color: var(--red); }
+    .info-cell-val.green { color: #4ade80; }
+
+    .specialty-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .spec-tag {
+      padding: 3px 8px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-main);
+    }
+
+    .wait-bar-wrap { margin-top: 6px; }
+    .wait-bar-label { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--font-mono); margin-bottom: 5px; }
+    .wait-bar-bg {
+      height: 6px;
+      background: var(--bg-void);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .wait-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .6s ease;
+    }
+
+    .route-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-top: 6px;
+    }
+    .route-icon { font-size: 20px; }
+    .route-details { flex: 1; }
+    .route-time { font-family: var(--font-head); font-size: 16px; font-weight: 700; color: var(--text-bright); }
+    .route-dist-label { font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); }
+
+    .btn-navigate {
+      width: 100%;
+      height: 40px;
+      background: linear-gradient(135deg, var(--teal), #007a63);
+      border: none;
+      border-radius: var(--radius);
+      color: var(--bg-void);
+      font-family: var(--font-head);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all .2s;
+      margin-top: 4px;
+      letter-spacing: 0.3px;
+    }
+    .btn-navigate:hover { filter: brightness(1.15); box-shadow: 0 0 20px rgba(0,212,170,0.3); }
+
+    .btn-secondary {
+      width: 100%;
+      height: 36px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all .15s;
+      margin-top: 6px;
+    }
+    .btn-secondary:hover { background: var(--bg-hover); color: var(--text-bright); border-color: var(--border-hi); }
+
+    /* Leaflet custom overrides */
+    .leaflet-container { background: #080c10 !important; }
+    .leaflet-control-zoom { display: none; }
+    .leaflet-popup-content-wrapper {
+      background: var(--bg-panel) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius) !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+      color: var(--text-main) !important;
+    }
+    .leaflet-popup-tip { background: var(--bg-panel) !important; }
+    .leaflet-popup-close-button { color: var(--text-muted) !important; }
+
+    .custom-popup h3 {
+      font-family: var(--font-head);
+      font-size: 14px;
+      color: var(--text-bright);
+      margin-bottom: 5px;
+    }
+    .custom-popup p { font-size: 12px; line-height: 1.5; }
+    .custom-popup .pop-meta { display: flex; gap: 10px; margin-top: 6px; font-family: var(--font-mono); font-size: 11px; }
+    .custom-popup .pop-btn {
+      margin-top: 10px;
+      width: 100%;
+      padding: 7px;
+      background: var(--teal-glow);
+      border: 1px solid var(--teal-dim);
+      border-radius: var(--radius-sm);
+      color: var(--teal);
+      font-size: 12px;
+      font-family: var(--font-body);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .custom-popup .pop-btn:hover { background: rgba(0,212,170,0.25); }
+
+    /* Mobile unit pulse animation */
+    @keyframes mobile-pulse {
+      0%   { transform: scale(1);   opacity: 1; }
+      50%  { transform: scale(1.4); opacity: 0.4; }
+      100% { transform: scale(1);   opacity: 1; }
+    }
+    .mobile-pulse-ring {
+      width: 30px; height: 30px;
+      border: 2px solid var(--teal);
+      border-radius: 50%;
+      animation: mobile-pulse 2s ease-in-out infinite;
+    }
+
+    /* No facilities message */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 12px;
+      text-align: center;
+    }
+    .empty-state .big-icon { font-size: 28px; opacity: 0.4; }
+
+    /* Scrollbar global */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Responsive tweaks */
+    @media (max-width: 900px) {
+      #sidebar { width: 260px; min-width: 260px; }
+      #detail-panel { width: 280px; min-width: 280px; }
+    }
+    @media (max-width: 700px) {
+      #sidebar { display: none; }
+      #detail-panel { width: 100%; position: absolute; right: 0; top: 0; bottom: 0; z-index: 500; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ TOP BAR ══ -->
+<div id="topbar">
+  <div class="logo">
+    <div class="logo-icon">✚</div>
+    Med<span>Map</span>
+  </div>
+  <div class="topbar-sep"></div>
+  <div id="search-bar">
+    <span class="search-icon">⌕</span>
+    <input type="text" placeholder="Search facilities, specialties, areas…" id="search-input" />
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill">
+      <span class="pulse-dot green"></span>
+      <span>Live Data</span>
+    </div>
+    <div class="status-pill">
+      <span class="pulse-dot amber"></span>
+      <span id="mobile-count">4 Units Active</span>
+    </div>
+    <button class="btn-locate" onclick="locateUser()">
+      ◎ My Location
+    </button>
+  </div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div id="main">
+
+  <!-- ── SIDEBAR ── -->
+  <div id="sidebar">
+
+    <!-- Filters -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Facility Type</div>
+      <div class="filter-group">
+        <div class="filter-row">
+          <label>
+            <span class="tag-dot" style="background:var(--red)"></span>
+            Hospitals
+          </label>
+          <div class="toggle on" id="tog-hospital" onclick="toggleFilter('hospital',this)"></div>
+        </div>
+        <div class="filter-row">
+          <label>
+            <span class="tag-dot" style="background:var(--blue)"></span>
+            Clinics
+          </label>
+          <div class="toggle on" id="tog-clinic" onclick="toggleFilter('clinic',this)"></div>
+        </div>
+        <div class="filter-row">
+          <label>
+            <span class="tag-dot" style="background:var(--teal)"></span>
+            Mobile Units
+          </label>
+          <div class="toggle on" id="tog-mobile" onclick="toggleFilter('mobile',this)"></div>
+        </div>
+        <div class="filter-row">
+          <label>
+            <span class="tag-dot" style="background:var(--amber)"></span>
+            Pharmacies
+          </label>
+          <div class="toggle on" id="tog-pharma" onclick="toggleFilter('pharma',this)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Specialties -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Specialty Filter</div>
+      <div class="chip-grid" id="specialty-chips">
+        <div class="chip active" onclick="filterSpecialty(this,'all')">All</div>
+        <div class="chip" onclick="filterSpecialty(this,'Emergency')">Emergency</div>
+        <div class="chip" onclick="filterSpecialty(this,'Cardiology')">Cardiology</div>
+        <div class="chip" onclick="filterSpecialty(this,'Paediatrics')">Paediatrics</div>
+        <div class="chip" onclick="filterSpecialty(this,'Orthopaedics')">Orthopaedics</div>
+        <div class="chip" onclick="filterSpecialty(this,'Gynaecology')">Gynaecology</div>
+        <div class="chip" onclick="filterSpecialty(this,'Neurology')">Neurology</div>
+        <div class="chip" onclick="filterSpecialty(this,'General')">General</div>
+      </div>
+    </div>
+
+    <!-- Sort row -->
+    <div class="sort-row">
+      <span class="sort-label">Sort:</span>
+      <button class="sort-btn active" id="sort-dist" onclick="sortFacilities('distance',this)">Distance</button>
+      <button class="sort-btn" id="sort-wait" onclick="sortFacilities('wait',this)">Wait Time</button>
+      <button class="sort-btn" id="sort-rat" onclick="sortFacilities('rating',this)">Rating</button>
+      <span class="result-count" id="result-count">18 results</span>
+    </div>
+
+    <!-- Facility list -->
+    <div id="facility-list"></div>
+  </div>
+
+  <!-- ── MAP ── -->
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <!-- Layer toggles -->
+    <div class="map-layer-toggle">
+      <button class="layer-btn on" id="layer-traffic" onclick="toggleLayer('traffic',this)">
+        🚦 Traffic
+      </button>
+      <button class="layer-btn on" id="layer-coverage" onclick="toggleLayer('coverage',this)">
+        📡 Coverage
+      </button>
+      <button class="layer-btn" id="layer-heatmap" onclick="toggleLayer('heatmap',this)">
+        🔥 Demand
+      </button>
+    </div>
+
+    <!-- Right controls -->
+    <div class="map-controls">
+      <button class="map-ctrl-btn" onclick="map.zoomIn()" title="Zoom In">＋</button>
+      <button class="map-ctrl-btn" onclick="map.zoomOut()" title="Zoom Out">－</button>
+      <button class="map-ctrl-btn" onclick="resetView()" title="Reset View">⊕</button>
+    </div>
+
+    <!-- Bottom stats -->
+    <div class="map-stats">
+      <div class="stat-chip">
+        <span class="val" id="stat-facilities">18</span>
+        <span>Facilities</span>
+      </div>
+      <div class="stat-chip">
+        <span class="val" id="stat-nearest">—</span>
+        <span>Nearest</span>
+      </div>
+      <div class="stat-chip">
+        <span class="val" id="stat-mobile">4</span>
+        <span>Mobile Units</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DETAIL PANEL ── -->
+  <div id="detail-panel">
+    <div class="dp-header">
+      <div class="dp-icon" id="dp-icon">🏥</div>
+      <div>
+        <div class="dp-title" id="dp-name">—</div>
+        <div class="dp-subtitle" id="dp-subtitle">—</div>
+      </div>
+      <div class="dp-close" onclick="closeDetail()">✕</div>
+    </div>
+    <div class="dp-body" id="dp-body"></div>
+  </div>
+
+</div>
+
+<script>
+// ══ DATA ══
+const FACILITIES = [
+  {
+    id:1, type:'hospital', name:'AIIMS New Delhi', address:'Sri Aurobindo Marg, Ansari Nagar, New Delhi',
+    lat:28.5672, lng:77.2100, specialty:['Emergency','Cardiology','Neurology','Oncology','Paediatrics'],
+    waitTime:42, rating:4.8, beds:2478, open:true, phone:'+91-11-26588500',
+    distance:null, routeTime:null,
+    desc:'Premier public medical institution offering comprehensive multi-speciality tertiary care.'
+  },
+  {
+    id:2, type:'clinic', name:'Apollo Clinic Saket', address:'M-4, M Block Market, Saket, New Delhi',
+    lat:28.5213, lng:77.2040, specialty:['General','Cardiology','Gynaecology'],
+    waitTime:18, rating:4.5, beds:null, open:true, phone:'+91-11-71001066',
+    distance:null, routeTime:null,
+    desc:'Modern multi-speciality outpatient clinic with diagnostic services.'
+  },
+  {
+    id:3, type:'hospital', name:'Safdarjung Hospital', address:'Ansari Nagar West, New Delhi',
+    lat:28.5693, lng:77.2017, specialty:['Emergency','Orthopaedics','General','Gynaecology'],
+    waitTime:65, rating:4.0, beds:1531, open:true, phone:'+91-11-26707444',
+    distance:null, routeTime:null,
+    desc:'Large government hospital and medical college with round-the-clock emergency services.'
+  },
+  {
+    id:4, type:'mobile', name:'Mobile Unit Alpha — Connaught Place', address:'In transit near Connaught Place',
+    lat:28.6315, lng:77.2167, specialty:['Emergency','General'],
+    waitTime:5, rating:4.6, beds:null, open:true, phone:'+91-98100-00001',
+    distance:null, routeTime:null,
+    desc:'Fully equipped emergency response mobile unit serving Central Delhi.'
+  },
+  {
+    id:5, type:'mobile', name:'Mobile Unit Beta — Lajpat Nagar', address:'Patrolling Lajpat Nagar sector',
+    lat:28.5677, lng:77.2434, specialty:['General','Paediatrics'],
+    waitTime:8, rating:4.4, beds:null, open:true, phone:'+91-98100-00002',
+    distance:null, routeTime:null,
+    desc:'Community health mobile unit focused on paediatrics and primary care.'
+  },
+  {
+    id:6, type:'clinic', name:'Max Smart Super Speciality — Saket', address:'Press Enclave Marg, Saket',
+    lat:28.5245, lng:77.2132, specialty:['Cardiology','Neurology','Orthopaedics','Oncology'],
+    waitTime:25, rating:4.7, beds:nil, open:true, phone:'+91-11-26515050',
+    distance:null, routeTime:null,
+    desc:'Super-speciality hospital delivering advanced cardiac, neuro and onco care.'
+  },
+  {
+    id:7, type:'pharma', name:'Apollo Pharmacy — Hauz Khas', address:'Hauz Khas Village, New Delhi',
+    lat:28.5535, lng:77.2008, specialty:['General'],
+    waitTime:3, rating:4.3, beds:null, open:true, phone:'+91-1800-419-0000',
+    distance:null, routeTime:null,
+    desc:'24-hour pharmacy with full medicine inventory and home delivery.'
+  },
+  {
+    id:8, type:'hospital', name:'RML Hospital', address:'Baba Kharak Singh Marg, New Delhi',
+    lat:28.6255, lng:77.2020, specialty:['Emergency','General','Paediatrics'],
+    waitTime:55, rating:3.9, beds:1533, open:true, phone:'+91-11-23404390',
+    distance:null, routeTime:null,
+    desc:'Major government hospital providing free care to Delhi residents.'
+  },
+  {
+    id:9, type:'clinic', name:'SRL Diagnostics — Vasant Kunj', address:'DDA Market, Vasant Kunj',
+    lat:28.5186, lng:77.1565, specialty:['General'],
+    waitTime:10, rating:4.2, beds:null, open:true, phone:'+91-11-39027777',
+    distance:null, routeTime:null,
+    desc:'Full-service diagnostic lab with home sample collection.'
+  },
+  {
+    id:10, type:'mobile', name:'Mobile Unit Gamma — Dwarka', address:'Patrolling Dwarka Sector 10',
+    lat:28.5815, lng:77.0484, specialty:['Emergency','General'],
+    waitTime:6, rating:4.5, beds:null, open:true, phone:'+91-98100-00003',
+    distance:null, routeTime:null,
+    desc:'West Delhi rapid response mobile unit servicing Dwarka sectors.'
+  },
+  {
+    id:11, type:'hospital', name:'Fortis Hospital — Vasant Kunj', address:'B-22, Vasant Kunj, New Delhi',
+    lat:28.5200, lng:77.1520, specialty:['Cardiology','Neurology','Orthopaedics'],
+    waitTime:30, rating:4.6, beds:262, open:true, phone:'+91-11-42776222',
+    distance:null, routeTime:null,
+    desc:'Multi-speciality private hospital with advanced cardiac and neuro departments.'
+  },
+  {
+    id:12, type:'clinic', name:'CGHS Dispensary — Karol Bagh', address:'Karol Bagh, New Delhi',
+    lat:28.6518, lng:77.1900, specialty:['General','Paediatrics'],
+    waitTime:22, rating:3.8, beds:null, open:true, phone:'+91-11-25741234',
+    distance:null, routeTime:null,
+    desc:'Government health scheme dispensary serving Karol Bagh locality.'
+  },
+  {
+    id:13, type:'pharma', name:'MedPlus — Lajpat Nagar', address:'Central Market, Lajpat Nagar II',
+    lat:28.5640, lng:77.2410, specialty:['General'],
+    waitTime:2, rating:4.1, beds:null, open:true, phone:'+91-40-67676767',
+    distance:null, routeTime:null,
+    desc:'Well-stocked pharmacy chain outlet with prescription and OTC medicines.'
+  },
+  {
+    id:14, type:'clinic', name:'Indraprastha Apollo — Sarita Vihar', address:'Mathura Road, Sarita Vihar',
+    lat:28.5355, lng:77.2805, specialty:['Emergency','Cardiology','Gynaecology','Oncology'],
+    waitTime:20, rating:4.8, beds:710, open:true, phone:'+91-11-71791090',
+    distance:null, routeTime:null,
+    desc:'Flagship Apollo hospital with comprehensive speciality services and emergency care.'
+  },
+  {
+    id:15, type:'mobile', name:'Mobile Unit Delta — Rohini', address:'Near Rohini Sector 3 Metro',
+    lat:28.7232, lng:77.1218, specialty:['General','Paediatrics'],
+    waitTime:7, rating:4.3, beds:null, open:false, phone:'+91-98100-00004',
+    distance:null, routeTime:null,
+    desc:'North Delhi community mobile unit; currently on maintenance break until 14:00.'
+  },
+  {
+    id:16, type:'hospital', name:'GTB Hospital — Shahdara', address:'Dilshad Garden, Shahdara, Delhi',
+    lat:28.6783, lng:77.3059, specialty:['Emergency','General','Orthopaedics'],
+    waitTime:70, rating:3.7, beds:1500, open:true, phone:'+91-11-22582626',
+    distance:null, routeTime:null,
+    desc:'Busy public hospital serving East Delhi with 24×7 trauma and casualty.'
+  },
+  {
+    id:17, type:'clinic', name:'Medanta OPD — Gurugram', address:'Sector 38, Gurugram, Haryana',
+    lat:28.4596, lng:77.0266, specialty:['Cardiology','Neurology','Gynaecology','Oncology'],
+    waitTime:15, rating:4.9, beds:null, open:true, phone:'+91-124-4141414',
+    distance:null, routeTime:null,
+    desc:'Premium multi-speciality outpatient facility of Medanta — The Medicity.'
+  },
+  {
+    id:18, type:'pharma', name:'Guardian Pharmacy — Rohini', address:'Sector 11, Rohini, New Delhi',
+    lat:28.7155, lng:77.1276, specialty:['General'],
+    waitTime:5, rating:4.0, beds:null, open:true, phone:'+91-11-27562000',
+    distance:null, routeTime:null,
+    desc:'24-hour pharmacy with full stock and cold-chain storage for insulin.'
+  }
+];
+
+// ══ STATE ══
+let map, userMarker, userLatLng = null;
+let routeLayer = null;
+let facilityMarkers = {};
+let activeFilters = { hospital:true, clinic:true, mobile:true, pharma:true };
+let activeSpecialty = 'all';
+let sortBy = 'distance';
+let activeFacilityId = null;
+let searchQuery = '';
+
+// ══ ICONS ══
+function makeIcon(type, size=28) {
+  const colors = { hospital:'#ff4d6a', clinic:'#4d9fff', mobile:'#00d4aa', pharma:'#f5a623' };
+  const emojis = { hospital:'🏥', clinic:'🩺', mobile:'🚑', pharma:'💊' };
+  const c = colors[type] || '#aaa';
+  const html = type === 'mobile'
+    ? `<div style="position:relative;width:${size+10}px;height:${size+10}px;display:flex;align-items:center;justify-content:center;">
+        <div style="position:absolute;width:${size+10}px;height:${size+10}px;border:2px solid ${c};border-radius:50%;animation:mobile-pulse 2s ease-in-out infinite;opacity:0.6;"></div>
+        <div style="width:${size}px;height:${size}px;background:rgba(0,212,170,0.2);border:2px solid ${c};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;">${emojis[type]}</div>
+       </div>`
+    : `<div style="width:${size}px;height:${size}px;background:rgba(0,0,0,0.7);border:2px solid ${c};border-radius:${type==='pharma'?'6px':'50%'};display:flex;align-items:center;justify-content:center;font-size:${size*0.45}px;box-shadow:0 0 10px ${c}40;">${emojis[type]}</div>`;
+  return L.divIcon({
+    html, className:'', iconSize:[size+10, size+10], iconAnchor:[(size+10)/2,(size+10)/2],
+    popupAnchor:[0,-(size+10)/2]
+  });
+}
+
+function userIcon() {
+  return L.divIcon({
+    html: `<div style="width:20px;height:20px;background:#00d4aa;border:3px solid white;border-radius:50%;box-shadow:0 0 16px rgba(0,212,170,0.8);position:relative;">
+            <div style="position:absolute;inset:-8px;border:2px solid rgba(0,212,170,0.4);border-radius:50%;animation:mobile-pulse 1.5s ease-in-out infinite;"></div>
+           </div>`,
+    className:'', iconSize:[20,20], iconAnchor:[10,10]
+  });
+}
+
+// ══ MAP INIT ══
+function initMap() {
+  map = L.map('map', {
+    center: [28.5700, 77.2100],
+    zoom: 12,
+    zoomControl: false,
+    attributionControl: false
+  });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, subdomains: 'abcd'
+  }).addTo(map);
+
+  FACILITIES.forEach(f => {
+    const marker = L.marker([f.lat, f.lng], { icon: makeIcon(f.type) })
+      .addTo(map)
+      .bindPopup(buildPopupHTML(f), { maxWidth: 240, className: '' });
+    marker.on('click', () => openDetail(f.id));
+    facilityMarkers[f.id] = marker;
+  });
+
+  map.on('click', () => {});
+
+  // Animate mobile units
+  animateMobileUnits();
+}
+
+function buildPopupHTML(f) {
+  const waitColor = f.waitTime < 20 ? '#4ade80' : f.waitTime < 45 ? '#f5a623' : '#ff4d6a';
+  return `<div class="custom-popup">
+    <h3>${f.name}</h3>
+    <p style="color:var(--text-muted);font-size:11px;">${f.address}</p>
+    <div class="pop-meta">
+      <span style="color:${waitColor}">⏱ ${f.waitTime}m wait</span>
+      <span style="color:var(--amber)">★ ${f.rating}</span>
+      ${f.open ? '<span style="color:#4ade80">● Open</span>' : '<span style="color:var(--red)">● Closed</span>'}
+    </div>
+    <button class="pop-btn" onclick="openDetail(${f.id})">View Details & Route →</button>
+  </div>`;
+}
+
+// ══ MOBILE UNIT ANIMATION ══
+let mobileOffsets = {};
+FACILITIES.filter(f=>f.type==='mobile').forEach(f=>{
+  mobileOffsets[f.id] = {dx:0,dy:0,dxDir:Math.random()>0.5?1:-1,dyDir:Math.random()>0.5?1:-1};
+});
+
+function animateMobileUnits() {
+  setInterval(()=>{
+    FACILITIES.filter(f=>f.type==='mobile' && f.open).forEach(f=>{
+      const o = mobileOffsets[f.id];
+      o.dx += o.dxDir * 0.0003;
+      o.dy += o.dyDir * 0.0003;
+      if(Math.abs(o.dx)>0.004) o.dxDir*=-1;
+      if(Math.abs(o.dy)>0.004) o.dyDir*=-1;
+      const m = facilityMarkers[f.id];
+      if(m) m.setLatLng([f.lat+o.dy, f.lng+o.dx]);
+    });
+  }, 1500);
+}
+
+// ══ USER LOCATION ══
+function locateUser() {
+  if(!navigator.geolocation){ alert('Geolocation not supported'); return; }
+  navigator.geolocation.getCurrentPosition(pos=>{
+    userLatLng = [pos.coords.latitude, pos.coords.longitude];
+    if(userMarker) map.removeLayer(userMarker);
+    userMarker = L.marker(userLatLng, {icon:userIcon()}).addTo(map);
+    map.setView(userLatLng, 13);
+    calcDistances();
+    renderFacilityList();
+    document.getElementById('stat-nearest').textContent = getNearestDist();
+  }, ()=>{
+    // Fallback to Delhi center
+    userLatLng = [28.5700, 77.2100];
+    calcDistances();
+    renderFacilityList();
+  });
+}
+
+function haversine(a, b) {
+  const R=6371, dLat=(b[0]-a[0])*Math.PI/180, dLon=(b[1]-a[1])*Math.PI/180;
+  const x=Math.sin(dLat/2)**2 + Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+function calcDistances() {
+  if(!userLatLng) return;
+  FACILITIES.forEach(f=>{
+    f.distance = haversine(userLatLng,[f.lat,f.lng]);
+    f.routeTime = Math.round(f.distance / 0.4 + f.distance * 0.5 + Math.random()*3);
+  });
+}
+
+function getNearestDist() {
+  if(!userLatLng) return '—';
+  const sorted = [...FACILITIES].filter(f=>f.distance!=null).sort((a,b)=>a.distance-b.distance);
+  return sorted[0] ? sorted[0].distance.toFixed(1)+'km' : '—';
+}
+
+// ══ FILTER & SORT ══
+function toggleFilter(type, el) {
+  activeFilters[type] = !activeFilters[type];
+  el.classList.toggle('on', activeFilters[type]);
+  FACILITIES.forEach(f=>{
+    if(f.type===type) {
+      const m = facilityMarkers[f.id];
+      if(m) activeFilters[type] ? m.addTo(map) : map.removeLayer(m);
+    }
+  });
+  renderFacilityList();
+}
+
+function filterSpecialty(el, spec) {
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  activeSpecialty = spec;
+  renderFacilityList();
+}
+
+function sortFacilities(by, el) {
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  sortBy = by;
+  renderFacilityList();
+}
+
+function getFilteredFacilities() {
+  let list = FACILITIES.filter(f => activeFilters[f.type]);
+  if(activeSpecialty !== 'all') list = list.filter(f=>f.specialty.includes(activeSpecialty));
+  if(searchQuery) list = list.filter(f=>
+    f.name.toLowerCase().includes(searchQuery) ||
+    f.address.toLowerCase().includes(searchQuery) ||
+    f.specialty.some(s=>s.toLowerCase().includes(searchQuery))
+  );
+  list.sort((a,b)=>{
+    if(sortBy==='distance') return (a.distance??999)-(b.distance??999);
+    if(sortBy==='wait') return a.waitTime-b.waitTime;
+    if(sortBy==='rating') return b.rating-a.rating;
+    return 0;
+  });
+  return list;
+}
+
+// ══ RENDER LIST ══
+function renderFacilityList() {
+  const list = getFilteredFacilities();
+  const el = document.getElementById('facility-list');
+  document.getElementById('result-count').textContent = list.length+' results';
+  document.getElementById('stat-facilities').textContent = list.length;
+  const mobileCount = list.filter(f=>f.type==='mobile').length;
+  document.getElementById('stat-mobile').textContent = mobileCount;
+
+  if(!list.length) {
+    el.innerHTML = `<div class="empty-state"><div class="big-icon">🔍</div><div>No facilities match current filters.</div></div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(f=>{
+    const waitClass = f.waitTime<20?'wait-low':f.waitTime<45?'wait-medium':'wait-high';
+    const badgeClass = 'badge-'+f.type;
+    const distStr = f.distance!=null ? f.distance.toFixed(1)+'km' : '—';
+    const badgeLabel = {hospital:'HOSPITAL',clinic:'CLINIC',mobile:'MOBILE',pharma:'PHARMACY'}[f.type];
+    return `<div class="facility-card${activeFacilityId===f.id?' active':''}" onclick="openDetail(${f.id})">
+      <div class="fc-header">
+        <div class="fc-name">${f.name}</div>
+        <div class="fc-type-badge ${badgeClass}">${badgeLabel}</div>
+      </div>
+      <div class="fc-meta">
+        <span class="fc-meta-item fc-dist">◎ ${distStr}</span>
+        <span class="fc-meta-item fc-wait ${waitClass}">⏱ ${f.waitTime}m</span>
+        <span class="fc-meta-item fc-rating">★ ${f.rating}</span>
+        <span class="fc-meta-item ${f.open?'fc-open':'fc-closed'}">${f.open?'● Open':'● Closed'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══ DETAIL PANEL ══
+function openDetail(id) {
+  const f = FACILITIES.find(x=>x.id===id);
+  if(!f) return;
+  activeFacilityId = id;
+
+  // Update active state in list
+  document.querySelectorAll('.facility-card').forEach(c=>c.classList.remove('active'));
+  const cards = document.querySelectorAll('.facility-card');
+  // Re-render to update active class
+  renderFacilityList();
+
+  // Pan map to facility
+  map.setView([f.lat, f.lng], 14);
+  facilityMarkers[f.id]?.openPopup();
+
+  // Draw mock route
+  drawMockRoute(f);
+
+  // Fill panel
+  const icons = {hospital:'🏥',clinic:'🩺',mobile:'🚑',pharma:'💊'};
+  const iconEl = document.getElementById('dp-icon');
+  iconEl.textContent = icons[f.type];
+  iconEl.className = `dp-icon ${f.type}`;
+  document.getElementById('dp-name').textContent = f.name;
+  document.getElementById('dp-subtitle').textContent = f.address;
+
+  const waitColor = f.waitTime<20?'green':f.waitTime<45?'amber':'red';
+  const waitBarPct = Math.min(100, (f.waitTime/90)*100);
+  const waitBarColor = f.waitTime<20?'#4ade80':f.waitTime<45?'#f5a623':'#ff4d6a';
+  const distStr = f.distance!=null?f.distance.toFixed(1)+' km':'—';
+  const timeStr = f.routeTime!=null?f.routeTime+' min':'—';
+  const bedsStr = f.beds ? f.beds.toLocaleString() : 'N/A';
+
+  const specs = f.specialty.map(s=>`<span class="spec-tag">${s}</span>`).join('');
+
+  document.getElementById('dp-body').innerHTML = `
+    <div class="dp-section">
+      <div class="dp-section-title">Quick Stats</div>
+      <div class="info-grid">
+        <div class="info-cell">
+          <div class="info-cell-label">WAIT TIME</div>
+          <div class="info-cell-val ${waitColor}">${f.waitTime} min</div>
+        </div>
+        <div class="info-cell">
+          <div class="info-cell-label">RATING</div>
+          <div class="info-cell-val amber">★ ${f.rating}</div>
+        </div>
+        <div class="info-cell">
+          <div class="info-cell-label">DISTANCE</div>
+          <div class="info-cell-val teal">${distStr}</div>
+        </div>
+        <div class="info-cell">
+          <div class="info-cell-label">STATUS</div>
+          <div class="info-cell-val ${f.open?'green':'red'}">${f.open?'Open':'Closed'}</div>
+        </div>
+        ${f.beds?`<div class="info-cell" style="grid-column:span 2">
+          <div class="info-cell-label">TOTAL BEDS</div>
+          <div class="info-cell-val">${bedsStr}</div>
+        </div>`:''}
+      </div>
+    </div>
+
+    <div class="dp-section">
+      <div class="dp-section-title">Specialties</div>
+      <div class="specialty-list">${specs}</div>
+    </div>
+
+    <div class="dp-section">
+      <div class="dp-section-title">Live Wait Time</div>
+      <div class="wait-bar-wrap">
+        <div class="wait-bar-label">
+          <span>Current Queue</span>
+          <span style="color:${waitBarColor}">${f.waitTime} min</span>
+        </div>
+        <div class="wait-bar-bg">
+          <div class="wait-bar-fill" style="width:${waitBarPct}%;background:${waitBarColor};"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dp-section">
+      <div class="dp-section-title">Routing</div>
+      ${userLatLng ? `
+      <div class="route-info">
+        <span class="route-icon">🚗</span>
+        <div class="route-details">
+          <div class="route-time">${timeStr}</div>
+          <div class="route-dist-label">${distStr} • via fastest route</div>
+        </div>
+      </div>` : `<p style="font-size:12px;color:var(--text-muted)">Enable location to see routing.</p>`}
+      <button class="btn-navigate" onclick="startNavigation(${f.id})">
+        ↗ Start Navigation
+      </button>
+      <button class="btn-secondary" onclick="callFacility('${f.phone}')">
+        📞 ${f.phone}
+      </button>
+    </div>
+
+    <div class="dp-section">
+      <div class="dp-section-title">About</div>
+      <p style="font-size:12.5px;line-height:1.6;color:var(--text-main)">${f.desc}</p>
+    </div>
+  `;
+
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  activeFacilityId = null;
+  clearRoute();
+  renderFacilityList();
+}
+
+// ══ MOCK ROUTE ══
+function drawMockRoute(f) {
+  clearRoute();
+  if(!userLatLng) return;
+  const start = L.latLng(userLatLng[0], userLatLng[1]);
+  const end   = L.latLng(f.lat, f.lng);
+  // Bezier-like intermediate point
+  const midLat = (start.lat+end.lat)/2 + (Math.random()-0.5)*0.02;
+  const midLng = (start.lng+end.lng)/2 + (Math.random()-0.5)*0.02;
+  const pts = [start, L.latLng(midLat, midLng), end];
+  routeLayer = L.polyline(pts, {
+    color:'#00d4aa', weight:3, opacity:0.75,
+    dashArray:'8, 6', lineCap:'round'
+  }).addTo(map);
+  map.fitBounds(routeLayer.getBounds(), {padding:[60,60]});
+}
+
+function clearRoute() {
+  if(routeLayer) { map.removeLayer(routeLayer); routeLayer=null; }
+}
+
+function startNavigation(id) {
+  const f = FACILITIES.find(x=>x.id===id);
+  if(!f) return;
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${f.lat},${f.lng}&travelmode=driving`;
+  window.open(url, '_blank');
+}
+
+function callFacility(phone) {
+  window.location.href = `tel:${phone}`;
+}
+
+// ══ LAYER TOGGLES (Visual only in this prototype) ══
+function toggleLayer(layer, el) {
+  el.classList.toggle('on');
+}
+
+function resetView() {
+  clearRoute();
+  map.setView([28.5700, 77.2100], 12);
+}
+
+// ══ SEARCH ══
+document.getElementById('search-input').addEventListener('input', e=>{
+  searchQuery = e.target.value.toLowerCase().trim();
+  renderFacilityList();
+});
+
+// ══ INIT ══
+window.addEventListener('DOMContentLoaded', ()=>{
+  initMap();
+  renderFacilityList();
+  // Auto-locate after small delay
+  setTimeout(()=>locateUser(), 800);
+});
+</script>
+</body>
+</html>
