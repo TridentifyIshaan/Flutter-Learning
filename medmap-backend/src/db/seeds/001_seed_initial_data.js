@@ -1,3 +1,5 @@
+const db = require('../../config/database');
+
 exports.seed = async (knex) => {
   // First, delete existing entries
   await knex('wait_times').del();
@@ -291,8 +293,7 @@ exports.seed = async (knex) => {
     },
   ];
 
-  const insertedFacilities = await knex('facilities').insert(facilities).returning('id');
-  const facilityIds = insertedFacilities.map((row) => (typeof row === 'object' ? row.id : row));
+  const facilityIds = await knex('facilities').insert(facilities).returning('id');
 
   // Insert initial wait times for each facility
   const waitTimes = facilityIds.map((id, index) => ({
